@@ -15,6 +15,7 @@ To setup this game, you need to follow the below steps.
      2. cd flappy-bird
      3. yarn install
      4. npx react native start
-     5. Press a in terminal to install android apk. ```
+     5. Press a in terminal to install android apk. 
+ ```
      
 ## Thankyou
