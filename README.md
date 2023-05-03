@@ -11,10 +11,10 @@ To install and run this project you need:
 
 ## Installition
 To setup this game, you need to follow the below steps.
- `` 1. Clone the repo https://github.com/pankaj610/flappy-bird
+ ``` 1. Clone the repo https://github.com/pankaj610/flappy-bird
      2. cd flappy-bird
      3. yarn install
      4. npx react native start
-     5. Press a in terminal to install android apk. ``
+     5. Press a in terminal to install android apk. ```
      
 ## Thankyou
