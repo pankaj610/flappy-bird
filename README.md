@@ -1,4 +1,4 @@
-# flappy-bird
+# Flappy-bird
 
 Flappy Bird is a game in which the bird flies on tapping and have to avoids the collision with obstacles.
 
