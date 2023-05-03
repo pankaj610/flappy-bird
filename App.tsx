@@ -5,113 +5,203 @@
  * @format
  */
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+import React, {useEffect, useRef, useState} from 'react';
+import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+import {GameEngine} from 'react-native-game-engine';
+import Matter, {IEngineDefinition} from 'matter-js';
+import {Constants} from './src/Constants';
+import {EntitiesType} from './types';
+import Bird from './src/Bird';
+import Physics from './src/Physics';
+import Wall from './src/Wall';
+import Pipe from './src/Pipe';
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+export const randomBetween = (min: number, max: number) => {
+  return Math.floor(Math.random() * (max - min + 1) + min);
+};
 
-function Section({children, title}: SectionProps): JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+export const generatePipes = () => {
+  let topPipeHeight = randomBetween(100, Constants.MAX_HEIGHT / 2 - 100);
+  let bottomPipeHeight =
+    Constants.MAX_HEIGHT - topPipeHeight - Constants.GAP_SIZE;
+  let sizes = [topPipeHeight, bottomPipeHeight];
+  if (Math.random() < 0.5) {
+    sizes = sizes.reverse();
+  }
+  return sizes;
+};
+
+const useGameEngine = (gameEngineRef: any) => {
+  const [entities, setEntities] = useState<EntitiesType | null>(null);
+  const [running, setRunning] = useState<boolean>(true);
+  useEffect(() => {
+    const tempEntities = setupWorld();
+    setEntities(tempEntities);
+  }, []);
+
+  const setupWorld = () => {
+    const options: IEngineDefinition = {enableSleeping: false};
+    let engine = Matter.Engine.create(options);
+    let world = engine.world;
+    let bird = Matter.Bodies.rectangle(
+      Constants.MAX_WIDTH / 4,
+      Constants.MAX_HEIGHT / 2,
+      50,
+      50,
+    );
+    const floor = Matter.Bodies.rectangle(
+      Constants.MAX_WIDTH / 2,
+      Constants.MAX_HEIGHT - 100,
+      Constants.MAX_WIDTH,
+      50,
+      {isStatic: true},
+    );
+    const ceiling = Matter.Bodies.rectangle(
+      Constants.MAX_WIDTH / 2,
+      50,
+      Constants.MAX_WIDTH,
+      50,
+      {isStatic: true},
+    );
+    let [pipe1Height, pipe2Height] = generatePipes();
+    let [pipe3Height, pipe4Height] = generatePipes();
+
+    let pipe1 = Matter.Bodies.rectangle(
+      Constants.MAX_WIDTH - Constants.PIPE_WIDTH / 2,
+      pipe1Height / 2,
+      Constants.PIPE_WIDTH,
+      pipe1Height,
+      {isStatic: true},
+    );
+    let pipe2 = Matter.Bodies.rectangle(
+      Constants.MAX_WIDTH - Constants.PIPE_WIDTH / 2,
+      Constants.MAX_HEIGHT - pipe2Height / 2,
+      Constants.PIPE_WIDTH,
+      pipe2Height,
+      {isStatic: true},
+    );
+
+    let pipe3 = Matter.Bodies.rectangle(
+      Constants.MAX_WIDTH * 2 - Constants.PIPE_WIDTH / 2,
+      pipe3Height / 2,
+      Constants.PIPE_WIDTH,
+      pipe3Height,
+      {isStatic: true},
+    );
+    let pipe4 = Matter.Bodies.rectangle(
+      Constants.MAX_WIDTH * 2 - Constants.PIPE_WIDTH / 2,
+      Constants.MAX_HEIGHT - pipe4Height / 2,
+      Constants.PIPE_WIDTH,
+      pipe4Height,
+      {isStatic: true},
+    );
+
+    Matter.World.add(world, [bird, floor, ceiling, pipe1, pipe2, pipe3, pipe4]);
+    Matter.Events.on(engine, 'collisionStart', () => {
+      //   let pairs = event.pairs;
+      gameEngineRef.current.dispatch({
+        type: 'game-over',
+      });
+    });
+    return {
+      physics: {engine, world},
+      bird: {body: bird, size: [50, 50], color: 'red', renderer: Bird},
+      ceiling: {
+        body: ceiling,
+        size: [Constants.MAX_WIDTH, 50],
+        color: 'lightblue',
+        renderer: Wall,
+      },
+      floor: {
+        body: floor,
+        size: [Constants.MAX_WIDTH, 50],
+        color: 'green',
+        renderer: Wall,
+      },
+      pipe1: {
+        body: pipe1,
+        size: [Constants.PIPE_WIDTH, pipe1Height],
+        color: 'red',
+        renderer: Pipe,
+      },
+      pipe2: {
+        body: pipe2,
+        size: [Constants.PIPE_WIDTH, pipe2Height],
+        color: 'blue',
+        renderer: Pipe,
+      },
+      pipe3: {
+        body: pipe3,
+        size: [Constants.PIPE_WIDTH, pipe3Height],
+        color: 'yellow',
+        renderer: Pipe,
+      },
+      pipe4: {
+        body: pipe4,
+        size: [Constants.PIPE_WIDTH, pipe4Height],
+        color: 'pink',
+        renderer: Pipe,
+      },
+    };
+  };
+
+  const onEvent = (e: any) => {
+    if (e.type === 'game-over') {
+      setRunning(false);
+    }
+  };
+  const restartGame = () => {
+    gameEngineRef.current.swap(setupWorld());
+    setRunning(true);
+  };
+  return {entities, running, onEvent, restartGame};
+};
+
+function App(): JSX.Element {
+  const gameEngineRef = useRef(null);
+  const {entities, running, onEvent, restartGame} =
+    useGameEngine(gameEngineRef);
+
   return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
+    <View style={styles.container}>
+      {!!entities && (
+        <GameEngine
+          ref={gameEngineRef}
+          style={styles.gameContainer}
+          entities={entities}
+          systems={[Physics]}
+          running={running}
+          onEvent={onEvent}
+        />
+      )}
+      {!running && (
+        <TouchableOpacity onPress={restartGame}>
+          <View style={styles.fullscreen}>
+            <Text style={styles.gameOverText}>Game Over</Text>
+          </View>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
-function App(): JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
-
-  return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff',
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
+  gameContainer: {},
+  fullscreen: {
+    width: Constants.MAX_WIDTH,
+    height: Constants.MAX_HEIGHT,
+    backgroundColor: 'black',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
+  gameOverText: {
+    color: 'white',
+    fontSize: 48,
   },
 });
 
